@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    /* Base Options: */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitAny": true,
+
+    /* If NOT transpiling with TypeScript: */
+    // "module": "preserve", // Keep if using tsx or another runner that handles modules
+    // "noEmit": true, // Keep if using tsx or another runner that handles modules
+
+    /* If your code runs in the DOM: */
+    // "lib": ["es2022", "dom", "dom.iterable"],
+
+    /* If you want to transpile with TypeScript: */
+    "module": "CommonJS",
+    "outDir": "./dist",
+    "rootDir": ".", // Assuming server.ts is at the root
+
+    /* Module Resolution Options */
+    "baseUrl": ".", // Allows absolute imports from the base directory
+    "paths": {
+      "@src/*": ["src/*"]
+    },
+
+    /* Source Map Options */
+    "sourceMap": true, // Generate source maps for debugging
+
+    /* Other Options */
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["**/*.ts"], // Include all .ts files in the project
+  "exclude": ["node_modules", "dist"] // Exclude node_modules and the output directory
+}
+

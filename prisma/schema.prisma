@@ -1,0 +1,657 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "./src/database"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model audit_logs {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  user_id     Int?     @db.UnsignedInt
+  action      String   @db.VarChar(50)
+  entity_type String   @db.VarChar(50)
+  entity_id   Int      @db.UnsignedInt
+  changes     Json?
+  ip_address  String?  @db.VarChar(45)
+  user_agent  String?  @db.VarChar(255)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+  users       users?   @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_audit_logs_user_id")
+
+  @@index([action], map: "idx_audit_logs_action")
+  @@index([created_at], map: "idx_audit_logs_created_at")
+  @@index([entity_type, entity_id], map: "idx_audit_logs_entity")
+  @@index([user_id], map: "idx_audit_logs_user_id")
+}
+
+model batches {
+  id                    Int                     @id @default(autoincrement()) @db.UnsignedInt
+  product_id            Int                     @db.UnsignedInt
+  batch_number          String                  @db.VarChar(50)
+  expiry_date           DateTime?               @db.Date
+  production_date       DateTime?               @db.Date
+  notes                 String?                 @db.Text
+  created_at            DateTime                @default(now()) @db.Timestamp(0)
+  products              products                @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_batches_product_id")
+  goods_receipt_items   goods_receipt_items[]
+  inventory_count_items inventory_count_items[]
+  inventory_movements   inventory_movements[]
+  serials               serials[]
+  shipment_items        shipment_items[]
+
+  @@unique([product_id, batch_number], map: "idx_batches_product_batch")
+}
+
+model categories {
+  id               Int          @id @default(autoincrement()) @db.UnsignedInt
+  name             String       @db.VarChar(100)
+  description      String?      @db.Text
+  parent_id        Int?         @db.UnsignedInt
+  categories       categories?  @relation("categoriesTocategories", fields: [parent_id], references: [id], onUpdate: NoAction, map: "fk_categories_parent_id")
+  other_categories categories[] @relation("categoriesTocategories")
+  products         products[]
+
+  @@index([parent_id], map: "idx_categories_parent_id")
+}
+
+model customers {
+  id           Int              @id @default(autoincrement()) @db.UnsignedInt
+  name         String           @db.VarChar(100)
+  tax_id       String?          @db.VarChar(50)
+  email        String?          @db.VarChar(100)
+  phone        String?          @db.VarChar(20)
+  address      String?          @db.VarChar(255)
+  city         String?          @db.VarChar(100)
+  state        String?          @db.VarChar(50)
+  postal_code  String?          @db.VarChar(20)
+  country      String?          @db.VarChar(50)
+  status       customers_status @default(active)
+  created_at   DateTime         @default(now()) @db.Timestamp(0)
+  updated_at   DateTime         @default(now()) @db.Timestamp(0)
+  sales_orders sales_orders[]
+  shipments    shipments[]
+
+  @@index([name], map: "idx_customers_name")
+  @@index([status], map: "idx_customers_status")
+  @@fulltext([name], map: "ft_idx_customers_name")
+}
+
+model goods_receipt_items {
+  id                     Int                   @id @default(autoincrement()) @db.UnsignedInt
+  goods_receipt_id       Int                   @db.UnsignedInt
+  purchase_order_item_id Int?                  @db.UnsignedInt
+  product_id             Int                   @db.UnsignedInt
+  quantity               Decimal               @db.Decimal(10, 2)
+  batch_id               Int?                  @db.UnsignedInt
+  notes                  String?               @db.Text
+  batches                batches?              @relation(fields: [batch_id], references: [id], onUpdate: NoAction, map: "fk_goods_receipt_items_batch_id")
+  goods_receipts         goods_receipts        @relation(fields: [goods_receipt_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_goods_receipt_items_goods_receipt_id")
+  products               products              @relation(fields: [product_id], references: [id], onUpdate: NoAction, map: "fk_goods_receipt_items_product_id")
+  purchase_order_items   purchase_order_items? @relation(fields: [purchase_order_item_id], references: [id], onUpdate: NoAction, map: "fk_goods_receipt_items_purchase_order_item_id")
+
+  @@index([batch_id], map: "idx_goods_receipt_items_batch_id")
+  @@index([goods_receipt_id], map: "idx_goods_receipt_items_goods_receipt_id")
+  @@index([product_id], map: "idx_goods_receipt_items_product_id")
+  @@index([purchase_order_item_id], map: "idx_goods_receipt_items_purchase_order_item_id")
+}
+
+model goods_receipts {
+  id                  Int                   @id @default(autoincrement()) @db.UnsignedInt
+  receipt_number      String                @unique(map: "idx_goods_receipts_receipt_number") @db.VarChar(50)
+  purchase_order_id   Int?                  @db.UnsignedInt
+  supplier_id         Int                   @db.UnsignedInt
+  location_id         Int                   @db.UnsignedInt
+  receipt_date        DateTime              @db.Date
+  status              goods_receipts_status @default(draft)
+  notes               String?               @db.Text
+  created_at          DateTime              @default(now()) @db.Timestamp(0)
+  created_by          Int?                  @db.UnsignedInt
+  goods_receipt_items goods_receipt_items[]
+  users               users?                @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_goods_receipts_created_by")
+  locations           locations             @relation(fields: [location_id], references: [id], onUpdate: NoAction, map: "fk_goods_receipts_location_id")
+  purchase_orders     purchase_orders?      @relation(fields: [purchase_order_id], references: [id], onUpdate: NoAction, map: "fk_goods_receipts_purchase_order_id")
+  suppliers           suppliers             @relation(fields: [supplier_id], references: [id], onUpdate: NoAction, map: "fk_goods_receipts_supplier_id")
+
+  @@index([created_by], map: "fk_goods_receipts_created_by")
+  @@index([location_id], map: "idx_goods_receipts_location_id")
+  @@index([purchase_order_id], map: "idx_goods_receipts_purchase_order_id")
+  @@index([receipt_date], map: "idx_goods_receipts_receipt_date")
+  @@index([supplier_id], map: "idx_goods_receipts_supplier_id")
+}
+
+model inventory {
+  id                 Int       @id @default(autoincrement()) @db.UnsignedInt
+  product_id         Int       @db.UnsignedInt
+  location_id        Int       @db.UnsignedInt
+  quantity           Decimal   @default(0.00) @db.Decimal(10, 2)
+  reserved_quantity  Decimal   @default(0.00) @db.Decimal(10, 2)
+  available_quantity Decimal?  @db.Decimal(10, 2)
+  last_counted_at    DateTime? @db.Timestamp(0)
+  updated_at         DateTime  @default(now()) @db.Timestamp(0)
+  locations          locations @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_inventory_location_id")
+  products           products  @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_inventory_product_id")
+
+  @@unique([product_id, location_id], map: "idx_inventory_product_location")
+  @@index([location_id], map: "idx_inventory_location_id")
+}
+
+model inventory_count_items {
+  id                Int              @id @default(autoincrement()) @db.UnsignedInt
+  count_id          Int              @db.UnsignedInt
+  product_id        Int              @db.UnsignedInt
+  expected_quantity Decimal          @default(0.00) @db.Decimal(10, 2)
+  counted_quantity  Decimal?         @db.Decimal(10, 2)
+  batch_id          Int?             @db.UnsignedInt
+  notes             String?          @db.Text
+  counted_at        DateTime?        @db.Timestamp(0)
+  counted_by        Int?             @db.UnsignedInt
+  batches           batches?         @relation(fields: [batch_id], references: [id], onUpdate: NoAction, map: "fk_inventory_count_items_batch_id")
+  inventory_counts  inventory_counts @relation(fields: [count_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_inventory_count_items_count_id")
+  users             users?           @relation(fields: [counted_by], references: [id], onUpdate: NoAction, map: "fk_inventory_count_items_counted_by")
+  products          products         @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_inventory_count_items_product_id")
+
+  @@unique([count_id, product_id, batch_id], map: "idx_inventory_count_items_count_product_batch")
+  @@index([counted_by], map: "fk_inventory_count_items_counted_by")
+  @@index([batch_id], map: "idx_inventory_count_items_batch_id")
+  @@index([product_id], map: "idx_inventory_count_items_product_id")
+}
+
+model inventory_counts {
+  id                                         Int                     @id @default(autoincrement()) @db.UnsignedInt
+  location_id                                Int                     @db.UnsignedInt
+  status                                     inventory_counts_status @default(draft)
+  count_date                                 DateTime                @db.Date
+  notes                                      String?                 @db.Text
+  created_at                                 DateTime                @default(now()) @db.Timestamp(0)
+  completed_at                               DateTime?               @db.Timestamp(0)
+  created_by                                 Int?                    @db.UnsignedInt
+  completed_by                               Int?                    @db.UnsignedInt
+  inventory_count_items                      inventory_count_items[]
+  users_inventory_counts_completed_byTousers users?                  @relation("inventory_counts_completed_byTousers", fields: [completed_by], references: [id], onUpdate: NoAction, map: "fk_inventory_counts_completed_by")
+  users_inventory_counts_created_byTousers   users?                  @relation("inventory_counts_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_inventory_counts_created_by")
+  locations                                  locations               @relation(fields: [location_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_inventory_counts_location_id")
+
+  @@index([completed_by], map: "fk_inventory_counts_completed_by")
+  @@index([created_by], map: "fk_inventory_counts_created_by")
+  @@index([count_date], map: "idx_inventory_counts_count_date")
+  @@index([location_id], map: "idx_inventory_counts_location_id")
+  @@index([status], map: "idx_inventory_counts_status")
+}
+
+model inventory_movements {
+  id                                                        Int                               @id @default(autoincrement()) @db.UnsignedInt
+  product_id                                                Int                               @db.UnsignedInt
+  from_location_id                                          Int?                              @db.UnsignedInt
+  to_location_id                                            Int?                              @db.UnsignedInt
+  quantity                                                  Decimal                           @db.Decimal(10, 2)
+  movement_type                                             inventory_movements_movement_type
+  reference_type                                            String?                           @db.VarChar(50)
+  reference_id                                              Int?                              @db.UnsignedInt
+  batch_id                                                  Int?                              @db.UnsignedInt
+  serial_id                                                 Int?                              @db.UnsignedInt
+  unit_cost                                                 Decimal?                          @db.Decimal(10, 2)
+  notes                                                     String?                           @db.Text
+  created_at                                                DateTime                          @default(now()) @db.Timestamp(0)
+  created_by                                                Int?                              @db.UnsignedInt
+  batches                                                   batches?                          @relation(fields: [batch_id], references: [id], onUpdate: NoAction, map: "fk_inventory_movements_batch_id")
+  users                                                     users?                            @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_inventory_movements_created_by")
+  locations_inventory_movements_from_location_idTolocations locations?                        @relation("inventory_movements_from_location_idTolocations", fields: [from_location_id], references: [id], onUpdate: NoAction, map: "fk_inventory_movements_from_location_id")
+  products                                                  products                          @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_inventory_movements_product_id")
+  serials                                                   serials?                          @relation(fields: [serial_id], references: [id], onUpdate: NoAction, map: "fk_inventory_movements_serial_id")
+  locations_inventory_movements_to_location_idTolocations   locations?                        @relation("inventory_movements_to_location_idTolocations", fields: [to_location_id], references: [id], onUpdate: NoAction, map: "fk_inventory_movements_to_location_id")
+
+  @@index([created_by], map: "fk_inventory_movements_created_by")
+  @@index([batch_id], map: "idx_inventory_movements_batch_id")
+  @@index([created_at], map: "idx_inventory_movements_created_at")
+  @@index([from_location_id], map: "idx_inventory_movements_from_location_id")
+  @@index([movement_type], map: "idx_inventory_movements_movement_type")
+  @@index([product_id], map: "idx_inventory_movements_product_id")
+  @@index([reference_type, reference_id], map: "idx_inventory_movements_reference")
+  @@index([serial_id], map: "idx_inventory_movements_serial_id")
+  @@index([to_location_id], map: "idx_inventory_movements_to_location_id")
+}
+
+model kpi_metrics {
+  id           Int      @id @default(autoincrement()) @db.UnsignedInt
+  metric_name  String   @db.VarChar(100)
+  metric_value Decimal  @db.Decimal(15, 4)
+  metric_date  DateTime @db.Date
+  entity_type  String?  @db.VarChar(50)
+  entity_id    Int?     @db.UnsignedInt
+  created_at   DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([entity_type, entity_id], map: "idx_kpi_metrics_entity")
+  @@index([metric_date], map: "idx_kpi_metrics_metric_date")
+  @@index([metric_name], map: "idx_kpi_metrics_metric_name")
+}
+
+model locations {
+  id                                                                  Int                   @id @default(autoincrement()) @db.UnsignedInt
+  name                                                                String                @db.VarChar(100)
+  type                                                                locations_type
+  address                                                             String?               @db.VarChar(255)
+  city                                                                String?               @db.VarChar(100)
+  state                                                               String?               @db.VarChar(50)
+  postal_code                                                         String?               @db.VarChar(20)
+  country                                                             String?               @db.VarChar(50)
+  is_active                                                           Boolean               @default(true)
+  goods_receipts                                                      goods_receipts[]
+  inventory                                                           inventory[]
+  inventory_counts                                                    inventory_counts[]
+  inventory_movements_inventory_movements_from_location_idTolocations inventory_movements[] @relation("inventory_movements_from_location_idTolocations")
+  inventory_movements_inventory_movements_to_location_idTolocations   inventory_movements[] @relation("inventory_movements_to_location_idTolocations")
+  purchase_orders                                                     purchase_orders[]
+  sales_orders                                                        sales_orders[]
+  shipments                                                           shipments[]
+
+  @@index([name], map: "idx_locations_name")
+  @@index([type], map: "idx_locations_type")
+}
+
+model permissions {
+  id               Int                @id @default(autoincrement()) @db.UnsignedInt
+  name             String             @unique(map: "idx_permissions_name") @db.VarChar(100)
+  description      String?            @db.VarChar(255)
+  role_permissions role_permissions[]
+}
+
+model product_suppliers {
+  product_id         Int       @db.UnsignedInt
+  supplier_id        Int       @db.UnsignedInt
+  supplier_sku       String?   @db.VarChar(50)
+  cost_price         Decimal?  @db.Decimal(10, 2)
+  lead_time_days     Int?      @db.UnsignedInt
+  is_preferred       Boolean   @default(false)
+  last_purchase_date DateTime? @db.Date
+  products           products  @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_product_suppliers_product_id")
+  suppliers          suppliers @relation(fields: [supplier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_product_suppliers_supplier_id")
+
+  @@id([product_id, supplier_id])
+  @@index([supplier_id], map: "fk_product_suppliers_supplier_id")
+}
+
+model products {
+  id                    Int                     @id @default(autoincrement()) @db.UnsignedInt
+  sku                   String                  @unique(map: "idx_products_sku") @db.VarChar(50)
+  barcode               String?                 @db.VarChar(50)
+  name                  String                  @db.VarChar(255)
+  description           String?                 @db.Text
+  category_id           Int?                    @db.UnsignedInt
+  unit_of_measure       String                  @default("unit") @db.VarChar(20)
+  cost_price            Decimal?                @db.Decimal(10, 2)
+  selling_price         Decimal?                @db.Decimal(10, 2)
+  min_stock_level       Decimal?                @db.Decimal(10, 2)
+  max_stock_level       Decimal?                @db.Decimal(10, 2)
+  reorder_point         Decimal?                @db.Decimal(10, 2)
+  weight                Decimal?                @db.Decimal(10, 2)
+  dimensions            String?                 @db.VarChar(50)
+  is_active             Boolean                 @default(true)
+  is_serialized         Boolean                 @default(false)
+  has_batches           Boolean                 @default(false)
+  created_at            DateTime                @default(now()) @db.Timestamp(0)
+  updated_at            DateTime                @default(now()) @db.Timestamp(0)
+  created_by            Int?                    @db.UnsignedInt
+  batches               batches[]
+  goods_receipt_items   goods_receipt_items[]
+  inventory             inventory[]
+  inventory_count_items inventory_count_items[]
+  inventory_movements   inventory_movements[]
+  product_suppliers     product_suppliers[]
+  categories            categories?             @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_products_category_id")
+  users                 users?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_products_created_by")
+  purchase_order_items  purchase_order_items[]
+  sales_order_items     sales_order_items[]
+  serials               serials[]
+  shipment_items        shipment_items[]
+
+  @@index([created_by], map: "fk_products_created_by")
+  @@index([barcode], map: "idx_products_barcode")
+  @@index([category_id], map: "idx_products_category_id")
+  @@index([name], map: "idx_products_name")
+  @@fulltext([name], map: "ft_idx_products_name")
+}
+
+model purchase_order_items {
+  id                     Int                   @id @default(autoincrement()) @db.UnsignedInt
+  purchase_order_id      Int                   @db.UnsignedInt
+  product_id             Int                   @db.UnsignedInt
+  quantity               Decimal               @db.Decimal(10, 2)
+  received_quantity      Decimal               @default(0.00) @db.Decimal(10, 2)
+  unit_price             Decimal               @db.Decimal(10, 2)
+  line_total             Decimal?              @db.Decimal(12, 2)
+  expected_delivery_date DateTime?             @db.Date
+  notes                  String?               @db.Text
+  goods_receipt_items    goods_receipt_items[]
+  products               products              @relation(fields: [product_id], references: [id], onUpdate: NoAction, map: "fk_purchase_order_items_product_id")
+  purchase_orders        purchase_orders       @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_purchase_order_items_purchase_order_id")
+
+  @@index([product_id], map: "idx_purchase_order_items_product_id")
+  @@index([purchase_order_id], map: "idx_purchase_order_items_purchase_order_id")
+}
+
+model purchase_orders {
+  id                                       Int                    @id @default(autoincrement()) @db.UnsignedInt
+  po_number                                String                 @unique(map: "idx_purchase_orders_po_number") @db.VarChar(50)
+  supplier_id                              Int                    @db.UnsignedInt
+  location_id                              Int                    @db.UnsignedInt
+  status                                   String                 @default("draft") @db.VarChar(69)
+  order_date                               DateTime               @db.Date
+  expected_delivery_date                   DateTime?              @db.Date
+  total_amount                             Decimal                @default(0.00) @db.Decimal(12, 2)
+  currency                                 String                 @default("BRL") @db.VarChar(3)
+  payment_terms                            String?                @db.VarChar(100)
+  shipping_terms                           String?                @db.VarChar(100)
+  notes                                    String?                @db.Text
+  created_at                               DateTime               @default(now()) @db.Timestamp(0)
+  updated_at                               DateTime               @default(now()) @db.Timestamp(0)
+  created_by                               Int?                   @db.UnsignedInt
+  approved_by                              Int?                   @db.UnsignedInt
+  goods_receipts                           goods_receipts[]
+  purchase_order_items                     purchase_order_items[]
+  users_purchase_orders_approved_byTousers users?                 @relation("purchase_orders_approved_byTousers", fields: [approved_by], references: [id], onUpdate: NoAction, map: "fk_purchase_orders_approved_by")
+  users_purchase_orders_created_byTousers  users?                 @relation("purchase_orders_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_purchase_orders_created_by")
+  locations                                locations              @relation(fields: [location_id], references: [id], onUpdate: NoAction, map: "fk_purchase_orders_location_id")
+  suppliers                                suppliers              @relation(fields: [supplier_id], references: [id], onUpdate: NoAction, map: "fk_purchase_orders_supplier_id")
+
+  @@index([approved_by], map: "fk_purchase_orders_approved_by")
+  @@index([created_by], map: "fk_purchase_orders_created_by")
+  @@index([location_id], map: "idx_purchase_orders_location_id")
+  @@index([order_date], map: "idx_purchase_orders_order_date")
+  @@index([status], map: "idx_purchase_orders_status")
+  @@index([supplier_id], map: "idx_purchase_orders_supplier_id")
+}
+
+model role_permissions {
+  role_id       Int         @db.UnsignedInt
+  permission_id Int         @db.UnsignedInt
+  permissions   permissions @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_role_permissions_permission_id")
+  roles         roles       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_role_permissions_role_id")
+
+  @@id([role_id, permission_id])
+  @@index([permission_id], map: "fk_role_permissions_permission_id")
+}
+
+model roles {
+  id               Int                @id @default(autoincrement()) @db.UnsignedInt
+  name             String             @unique(map: "idx_roles_name") @db.VarChar(50)
+  description      String?            @db.VarChar(255)
+  role_permissions role_permissions[]
+  user_roles       user_roles[]
+}
+
+model sales_order_items {
+  id               Int              @id @default(autoincrement()) @db.UnsignedInt
+  sales_order_id   Int              @db.UnsignedInt
+  product_id       Int              @db.UnsignedInt
+  quantity         Decimal          @db.Decimal(10, 2)
+  shipped_quantity Decimal          @default(0.00) @db.Decimal(10, 2)
+  unit_price       Decimal          @db.Decimal(10, 2)
+  line_total       Decimal?         @db.Decimal(12, 2)
+  notes            String?          @db.Text
+  products         products         @relation(fields: [product_id], references: [id], onUpdate: NoAction, map: "fk_sales_order_items_product_id")
+  sales_orders     sales_orders     @relation(fields: [sales_order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_sales_order_items_sales_order_id")
+  shipment_items   shipment_items[]
+
+  @@index([product_id], map: "idx_sales_order_items_product_id")
+  @@index([sales_order_id], map: "idx_sales_order_items_sales_order_id")
+}
+
+model sales_orders {
+  id                 Int                 @id @default(autoincrement()) @db.UnsignedInt
+  order_number       String              @unique(map: "idx_sales_orders_order_number") @db.VarChar(50)
+  customer_id        Int                 @db.UnsignedInt
+  location_id        Int                 @db.UnsignedInt
+  status             sales_orders_status @default(draft)
+  order_date         DateTime            @db.Date
+  expected_ship_date DateTime?           @db.Date
+  total_amount       Decimal             @default(0.00) @db.Decimal(12, 2)
+  currency           String              @default("BRL") @db.VarChar(3)
+  payment_terms      String?             @db.VarChar(100)
+  shipping_terms     String?             @db.VarChar(100)
+  notes              String?             @db.Text
+  created_at         DateTime            @default(now()) @db.Timestamp(0)
+  updated_at         DateTime            @default(now()) @db.Timestamp(0)
+  created_by         Int?                @db.UnsignedInt
+  sales_order_items  sales_order_items[]
+  users              users?              @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_sales_orders_created_by")
+  customers          customers           @relation(fields: [customer_id], references: [id], onUpdate: NoAction, map: "fk_sales_orders_customer_id")
+  locations          locations           @relation(fields: [location_id], references: [id], onUpdate: NoAction, map: "fk_sales_orders_location_id")
+  shipments          shipments[]
+
+  @@index([created_by], map: "fk_sales_orders_created_by")
+  @@index([customer_id], map: "idx_sales_orders_customer_id")
+  @@index([location_id], map: "idx_sales_orders_location_id")
+  @@index([order_date], map: "idx_sales_orders_order_date")
+  @@index([status], map: "idx_sales_orders_status")
+}
+
+model serials {
+  id                  Int                   @id @default(autoincrement()) @db.UnsignedInt
+  product_id          Int                   @db.UnsignedInt
+  serial_number       String                @db.VarChar(100)
+  batch_id            Int?                  @db.UnsignedInt
+  status              serials_status        @default(available)
+  notes               String?               @db.Text
+  created_at          DateTime              @default(now()) @db.Timestamp(0)
+  inventory_movements inventory_movements[]
+  batches             batches?              @relation(fields: [batch_id], references: [id], onUpdate: NoAction, map: "fk_serials_batch_id")
+  products            products              @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_serials_product_id")
+  shipment_items      shipment_items[]
+
+  @@unique([product_id, serial_number], map: "idx_serials_product_serial")
+  @@index([batch_id], map: "idx_serials_batch_id")
+  @@index([status], map: "idx_serials_status")
+}
+
+model shipment_items {
+  id                  Int                @id @default(autoincrement()) @db.UnsignedInt
+  shipment_id         Int                @db.UnsignedInt
+  sales_order_item_id Int?               @db.UnsignedInt
+  product_id          Int                @db.UnsignedInt
+  quantity            Decimal            @db.Decimal(10, 2)
+  batch_id            Int?               @db.UnsignedInt
+  serial_id           Int?               @db.UnsignedInt
+  notes               String?            @db.Text
+  batches             batches?           @relation(fields: [batch_id], references: [id], onUpdate: NoAction, map: "fk_shipment_items_batch_id")
+  products            products           @relation(fields: [product_id], references: [id], onUpdate: NoAction, map: "fk_shipment_items_product_id")
+  sales_order_items   sales_order_items? @relation(fields: [sales_order_item_id], references: [id], onUpdate: NoAction, map: "fk_shipment_items_sales_order_item_id")
+  serials             serials?           @relation(fields: [serial_id], references: [id], onUpdate: NoAction, map: "fk_shipment_items_serial_id")
+  shipments           shipments          @relation(fields: [shipment_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_shipment_items_shipment_id")
+
+  @@index([batch_id], map: "idx_shipment_items_batch_id")
+  @@index([product_id], map: "idx_shipment_items_product_id")
+  @@index([sales_order_item_id], map: "idx_shipment_items_sales_order_item_id")
+  @@index([serial_id], map: "idx_shipment_items_serial_id")
+  @@index([shipment_id], map: "idx_shipment_items_shipment_id")
+}
+
+model shipments {
+  id              Int              @id @default(autoincrement()) @db.UnsignedInt
+  shipment_number String           @unique(map: "idx_shipments_shipment_number") @db.VarChar(50)
+  sales_order_id  Int?             @db.UnsignedInt
+  customer_id     Int              @db.UnsignedInt
+  location_id     Int              @db.UnsignedInt
+  shipment_date   DateTime         @db.Date
+  status          shipments_status @default(draft)
+  tracking_number String?          @db.VarChar(100)
+  carrier         String?          @db.VarChar(100)
+  notes           String?          @db.Text
+  created_at      DateTime         @default(now()) @db.Timestamp(0)
+  created_by      Int?             @db.UnsignedInt
+  shipment_items  shipment_items[]
+  users           users?           @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_shipments_created_by")
+  customers       customers        @relation(fields: [customer_id], references: [id], onUpdate: NoAction, map: "fk_shipments_customer_id")
+  locations       locations        @relation(fields: [location_id], references: [id], onUpdate: NoAction, map: "fk_shipments_location_id")
+  sales_orders    sales_orders?    @relation(fields: [sales_order_id], references: [id], onUpdate: NoAction, map: "fk_shipments_sales_order_id")
+
+  @@index([created_by], map: "fk_shipments_created_by")
+  @@index([customer_id], map: "idx_shipments_customer_id")
+  @@index([location_id], map: "idx_shipments_location_id")
+  @@index([sales_order_id], map: "idx_shipments_sales_order_id")
+  @@index([shipment_date], map: "idx_shipments_shipment_date")
+}
+
+model supplier_ratings {
+  id          Int                       @id @default(autoincrement()) @db.UnsignedInt
+  supplier_id Int                       @db.UnsignedInt
+  rating      Decimal                   @db.Decimal(3, 2)
+  category    supplier_ratings_category
+  comments    String?                   @db.Text
+  rated_at    DateTime                  @db.Date
+  rated_by    Int?                      @db.UnsignedInt
+  users       users?                    @relation(fields: [rated_by], references: [id], onUpdate: NoAction, map: "fk_supplier_ratings_rated_by")
+  suppliers   suppliers                 @relation(fields: [supplier_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_supplier_ratings_supplier_id")
+
+  @@index([rated_by], map: "fk_supplier_ratings_rated_by")
+  @@index([supplier_id], map: "idx_supplier_ratings_supplier_id")
+}
+
+model suppliers {
+  id                Int                 @id @default(autoincrement()) @db.UnsignedInt
+  name              String              @db.VarChar(100)
+  legal_name        String?             @db.VarChar(100)
+  tax_id            String?             @db.VarChar(50)
+  contact_name      String?             @db.VarChar(100)
+  email             String?             @db.VarChar(100)
+  phone             String?             @db.VarChar(20)
+  address           String?             @db.VarChar(255)
+  city              String?             @db.VarChar(100)
+  state             String?             @db.VarChar(50)
+  postal_code       String?             @db.VarChar(20)
+  country           String?             @db.VarChar(50)
+  status            suppliers_status    @default(active)
+  payment_terms     String?             @db.VarChar(100)
+  lead_time_days    Int?                @db.UnsignedInt
+  created_at        DateTime            @default(now()) @db.Timestamp(0)
+  updated_at        DateTime            @default(now()) @db.Timestamp(0)
+  created_by        Int?                @db.UnsignedInt
+  goods_receipts    goods_receipts[]
+  product_suppliers product_suppliers[]
+  purchase_orders   purchase_orders[]
+  supplier_ratings  supplier_ratings[]
+  users             users?              @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_suppliers_created_by")
+
+  @@index([created_by], map: "fk_suppliers_created_by")
+  @@index([name], map: "idx_suppliers_name")
+  @@index([status], map: "idx_suppliers_status")
+  @@fulltext([name], map: "ft_idx_suppliers_name")
+}
+
+model user_roles {
+  user_id Int   @db.UnsignedInt
+  role_id Int   @db.UnsignedInt
+  roles   roles @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_roles_role_id")
+  users   users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_roles_user_id")
+
+  @@id([user_id, role_id])
+  @@index([role_id], map: "fk_user_roles_role_id")
+}
+
+model users {
+  id                                                    Int                     @id @default(autoincrement()) @db.UnsignedInt
+  username                                              String                  @unique(map: "idx_users_username") @db.VarChar(50)
+  email                                                 String                  @unique(map: "idx_users_email") @db.VarChar(100)
+  password_hash                                         String                  @db.VarChar(255)
+  full_name                                             String                  @db.VarChar(100)
+  is_active                                             Boolean                 @default(true)
+  created_at                                            DateTime                @default(now()) @db.Timestamp(0)
+  updated_at                                            DateTime                @default(now()) @db.Timestamp(0)
+  audit_logs                                            audit_logs[]
+  goods_receipts                                        goods_receipts[]
+  inventory_count_items                                 inventory_count_items[]
+  inventory_counts_inventory_counts_completed_byTousers inventory_counts[]      @relation("inventory_counts_completed_byTousers")
+  inventory_counts_inventory_counts_created_byTousers   inventory_counts[]      @relation("inventory_counts_created_byTousers")
+  inventory_movements                                   inventory_movements[]
+  products                                              products[]
+  purchase_orders_purchase_orders_approved_byTousers    purchase_orders[]       @relation("purchase_orders_approved_byTousers")
+  purchase_orders_purchase_orders_created_byTousers     purchase_orders[]       @relation("purchase_orders_created_byTousers")
+  sales_orders                                          sales_orders[]
+  shipments                                             shipments[]
+  supplier_ratings                                      supplier_ratings[]
+  suppliers                                             suppliers[]
+  user_roles                                            user_roles[]
+}
+
+enum inventory_counts_status {
+  draft
+  in_progress
+  completed
+  cancelled
+}
+
+enum locations_type {
+  warehouse
+  store
+  supplier
+  customer
+  transit
+  other
+}
+
+enum supplier_ratings_category {
+  quality
+  delivery
+  price
+  service
+  overall
+}
+
+enum sales_orders_status {
+  draft
+  confirmed
+  processing
+  ready
+  partially_shipped
+  shipped
+  delivered
+  cancelled
+}
+
+enum serials_status {
+  available
+  sold
+  reserved
+  defective
+  returned
+}
+
+enum inventory_movements_movement_type {
+  purchase
+  sale
+  transfer
+  adjustment
+  return_in
+  return_out
+  count
+  production
+  consumption
+}
+
+enum goods_receipts_status {
+  draft
+  received
+  returned
+  cancelled
+}
+
+enum shipments_status {
+  draft
+  shipped
+  delivered
+  returned
+  cancelled
+}
+
+enum customers_status {
+  active
+  inactive
+  blocked
+}
+
+enum suppliers_status {
+  active
+  inactive
+  blocked
+}
