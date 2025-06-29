@@ -113,6 +113,7 @@ model goods_receipts {
   locations           locations             @relation(fields: [location_id], references: [id], onUpdate: NoAction, map: "fk_goods_receipts_location_id")
   purchase_orders     purchase_orders?      @relation(fields: [purchase_order_id], references: [id], onUpdate: NoAction, map: "fk_goods_receipts_purchase_order_id")
   suppliers           suppliers             @relation(fields: [supplier_id], references: [id], onUpdate: NoAction, map: "fk_goods_receipts_supplier_id")
+  purchase_returns    purchase_returns[]
 
   @@index([created_by], map: "fk_goods_receipts_created_by")
   @@index([location_id], map: "idx_goods_receipts_location_id")
@@ -243,6 +244,7 @@ model locations {
   inventory_movements_inventory_movements_from_location_idTolocations inventory_movements[] @relation("inventory_movements_from_location_idTolocations")
   inventory_movements_inventory_movements_to_location_idTolocations   inventory_movements[] @relation("inventory_movements_to_location_idTolocations")
   purchase_orders                                                     purchase_orders[]
+  purchase_returns                                                    purchase_returns[]
   sales_orders                                                        sales_orders[]
   shipments                                                           shipments[]
 
@@ -302,6 +304,7 @@ model products {
   categories            categories?             @relation(fields: [category_id], references: [id], onUpdate: NoAction, map: "fk_products_category_id")
   users                 users?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_products_created_by")
   purchase_order_items  purchase_order_items[]
+  purchase_return_items purchase_return_items[]
   sales_order_items     sales_order_items[]
   serials               serials[]
   shipment_items        shipment_items[]
@@ -530,6 +533,7 @@ model suppliers {
   goods_receipts    goods_receipts[]
   product_suppliers product_suppliers[]
   purchase_orders   purchase_orders[]
+  purchase_returns  purchase_returns[]
   supplier_ratings  supplier_ratings[]
   users             users?              @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_suppliers_created_by")
 
@@ -567,11 +571,49 @@ model users {
   products                                              products[]
   purchase_orders_purchase_orders_approved_byTousers    purchase_orders[]       @relation("purchase_orders_approved_byTousers")
   purchase_orders_purchase_orders_created_byTousers     purchase_orders[]       @relation("purchase_orders_created_byTousers")
+  purchase_returns                                      purchase_returns[]
   sales_orders                                          sales_orders[]
   shipments                                             shipments[]
   supplier_ratings                                      supplier_ratings[]
   suppliers                                             suppliers[]
   user_roles                                            user_roles[]
+}
+
+model purchase_return_items {
+  id                 Int              @id @default(autoincrement()) @db.UnsignedInt
+  purchase_return_id Int              @db.UnsignedInt
+  product_id         Int              @db.UnsignedInt
+  quantity           Decimal          @db.Decimal(10, 2)
+  batch_id           Int?             @db.UnsignedInt
+  notes              String?          @db.Text
+  products           products         @relation(fields: [product_id], references: [id], onUpdate: NoAction, map: "fk_purchase_return_items_product_id")
+  purchase_returns   purchase_returns @relation(fields: [purchase_return_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_purchase_return_items_purchase_return_id")
+
+  @@index([product_id], map: "idx_purchase_return_items_product_id")
+  @@index([purchase_return_id], map: "idx_purchase_return_items_purchase_return_id")
+}
+
+model purchase_returns {
+  id                    Int                     @id @default(autoincrement()) @db.UnsignedInt
+  return_number         String                  @unique(map: "idx_purchase_returns_return_number") @db.VarChar(50)
+  supplier_id           Int                     @db.UnsignedInt
+  location_id           Int                     @db.UnsignedInt
+  goods_receipt_id      Int?                    @db.UnsignedInt
+  status                purchase_returns_status @default(draft)
+  return_date           DateTime                @db.Date
+  reason                String?                 @db.Text
+  created_at            DateTime                @default(now()) @db.Timestamp(0)
+  created_by            Int?                    @db.UnsignedInt
+  purchase_return_items purchase_return_items[]
+  users                 users?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_purchase_returns_created_by")
+  goods_receipts        goods_receipts?         @relation(fields: [goods_receipt_id], references: [id], onUpdate: NoAction, map: "fk_purchase_returns_goods_receipt_id")
+  locations             locations               @relation(fields: [location_id], references: [id], onUpdate: NoAction, map: "fk_purchase_returns_location_id")
+  suppliers             suppliers               @relation(fields: [supplier_id], references: [id], onUpdate: NoAction, map: "fk_purchase_returns_supplier_id")
+
+  @@index([created_by], map: "fk_purchase_returns_created_by")
+  @@index([goods_receipt_id], map: "fk_purchase_returns_goods_receipt_id")
+  @@index([location_id], map: "idx_purchase_returns_location_id")
+  @@index([supplier_id], map: "idx_purchase_returns_supplier_id")
 }
 
 enum inventory_counts_status {
@@ -654,4 +696,11 @@ enum suppliers_status {
   active
   inactive
   blocked
+}
+
+enum purchase_returns_status {
+  draft
+  confirmed
+  shipped
+  completed
 }
