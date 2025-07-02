@@ -57,21 +57,22 @@ model categories {
 }
 
 model customers {
-  id           Int              @id @default(autoincrement()) @db.UnsignedInt
-  name         String           @db.VarChar(100)
-  tax_id       String?          @db.VarChar(50)
-  email        String?          @db.VarChar(100)
-  phone        String?          @db.VarChar(20)
-  address      String?          @db.VarChar(255)
-  city         String?          @db.VarChar(100)
-  state        String?          @db.VarChar(50)
-  postal_code  String?          @db.VarChar(20)
-  country      String?          @db.VarChar(50)
-  status       customers_status @default(active)
-  created_at   DateTime         @default(now()) @db.Timestamp(0)
-  updated_at   DateTime         @default(now()) @db.Timestamp(0)
-  sales_orders sales_orders[]
-  shipments    shipments[]
+  id            Int              @id @default(autoincrement()) @db.UnsignedInt
+  name          String           @db.VarChar(100)
+  tax_id        String?          @db.VarChar(50)
+  email         String?          @db.VarChar(100)
+  phone         String?          @db.VarChar(20)
+  address       String?          @db.VarChar(255)
+  city          String?          @db.VarChar(100)
+  state         String?          @db.VarChar(50)
+  postal_code   String?          @db.VarChar(20)
+  country       String?          @db.VarChar(50)
+  status        customers_status @default(active)
+  created_at    DateTime         @default(now()) @db.Timestamp(0)
+  updated_at    DateTime         @default(now()) @db.Timestamp(0)
+  sales_orders  sales_orders[]
+  sales_returns sales_returns[]
+  shipments     shipments[]
 
   @@index([name], map: "idx_customers_name")
   @@index([status], map: "idx_customers_status")
@@ -246,6 +247,7 @@ model locations {
   purchase_orders                                                     purchase_orders[]
   purchase_returns                                                    purchase_returns[]
   sales_orders                                                        sales_orders[]
+  sales_returns                                                       sales_returns[]
   shipments                                                           shipments[]
 
   @@index([name], map: "idx_locations_name")
@@ -306,6 +308,7 @@ model products {
   purchase_order_items  purchase_order_items[]
   purchase_return_items purchase_return_items[]
   sales_order_items     sales_order_items[]
+  sales_return_items    sales_return_items[]
   serials               serials[]
   shipment_items        shipment_items[]
 
@@ -421,6 +424,7 @@ model sales_orders {
   users              users?              @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_sales_orders_created_by")
   customers          customers           @relation(fields: [customer_id], references: [id], onUpdate: NoAction, map: "fk_sales_orders_customer_id")
   locations          locations           @relation(fields: [location_id], references: [id], onUpdate: NoAction, map: "fk_sales_orders_location_id")
+  sales_returns      sales_returns[]
   shipments          shipments[]
 
   @@index([created_by], map: "fk_sales_orders_created_by")
@@ -573,6 +577,7 @@ model users {
   purchase_orders_purchase_orders_created_byTousers     purchase_orders[]       @relation("purchase_orders_created_byTousers")
   purchase_returns                                      purchase_returns[]
   sales_orders                                          sales_orders[]
+  sales_returns                                         sales_returns[]
   shipments                                             shipments[]
   supplier_ratings                                      supplier_ratings[]
   suppliers                                             suppliers[]
@@ -614,6 +619,43 @@ model purchase_returns {
   @@index([goods_receipt_id], map: "fk_purchase_returns_goods_receipt_id")
   @@index([location_id], map: "idx_purchase_returns_location_id")
   @@index([supplier_id], map: "idx_purchase_returns_supplier_id")
+}
+
+model sales_return_items {
+  id              Int           @id @default(autoincrement()) @db.UnsignedInt
+  sales_return_id Int           @db.UnsignedInt
+  product_id      Int           @db.UnsignedInt
+  quantity        Decimal       @db.Decimal(10, 2)
+  notes           String?       @db.Text
+  products        products      @relation(fields: [product_id], references: [id], onUpdate: NoAction, map: "fk_sales_return_items_product_id")
+  sales_returns   sales_returns @relation(fields: [sales_return_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_sales_return_items_sales_return_id")
+
+  @@index([product_id], map: "idx_sales_return_items_product_id")
+  @@index([sales_return_id], map: "idx_sales_return_items_sales_return_id")
+}
+
+model sales_returns {
+  id                 Int                  @id @default(autoincrement()) @db.UnsignedInt
+  return_number      String               @unique(map: "idx_sales_returns_return_number") @db.VarChar(50)
+  sales_order_id     Int?                 @db.UnsignedInt
+  customer_id        Int                  @db.UnsignedInt
+  location_id        Int                  @db.UnsignedInt
+  return_date        DateTime             @db.Date
+  status             sales_returns_status @default(draft)
+  reason             String?              @db.Text
+  notes              String?              @db.Text
+  created_at         DateTime             @default(now()) @db.Timestamp(0)
+  created_by         Int?                 @db.UnsignedInt
+  sales_return_items sales_return_items[]
+  users              users?               @relation(fields: [created_by], references: [id], onUpdate: NoAction, map: "fk_sales_returns_created_by")
+  customers          customers            @relation(fields: [customer_id], references: [id], onUpdate: NoAction, map: "fk_sales_returns_customer_id")
+  locations          locations            @relation(fields: [location_id], references: [id], onUpdate: NoAction, map: "fk_sales_returns_location_id")
+  sales_orders       sales_orders?        @relation(fields: [sales_order_id], references: [id], onUpdate: NoAction, map: "fk_sales_returns_sales_order_id")
+
+  @@index([created_by], map: "fk_sales_returns_created_by")
+  @@index([customer_id], map: "idx_sales_returns_customer_id")
+  @@index([location_id], map: "idx_sales_returns_location_id")
+  @@index([sales_order_id], map: "idx_sales_returns_sales_order_id")
 }
 
 enum inventory_counts_status {
@@ -703,4 +745,12 @@ enum purchase_returns_status {
   confirmed
   shipped
   completed
+}
+
+enum sales_returns_status {
+  draft
+  confirmed
+  processing
+  completed
+  cancelled
 }

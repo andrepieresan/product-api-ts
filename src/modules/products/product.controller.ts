@@ -1,95 +1,18 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { PrismaClient } from "../../../prisma/src/database/client";
-
-const prisma = new PrismaClient();
-const Product = prisma.products;
-const Category = prisma.categories;
+import { ProductService, ProductType } from "./products.service";
 
 type CategoryRequestBody = {
-    id: number;
     name: string;
     description?: string | null;
-    company_id: number | null;
-    createdAt: Date;
-    updatedAt: Date;
-};
-
-type ProductRequestBody = {
-    id: number;
-    sku: string;
-    barcode?: string | null;
-    name: string;
-    description?: string | null;
-    categoryId?: number | null;
-    unitOfMeasure: string;
-    costPrice?: number | null;
-    sellingPrice?: number | null;
-    minStockLevel?: number | null;
-    maxStockLevel?: number | null;
-    reorderPoint?: number | null;
-    weight?: number | null;
-    dimensions?: string | null;
-    isActive: boolean;
-    isSerialized: boolean;
-    hasBatches: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-    createdById?: number | null;
 };
 
 export class ProductController {
     static async store(
-        request: FastifyRequest<{ Body: ProductRequestBody }>,
+        request: FastifyRequest<{ Body: ProductType }>,
         reply: FastifyReply
     ) {
         try {
-            const {
-                id,
-                sku,
-                barcode,
-                name,
-                description,
-                categoryId,
-                unitOfMeasure,
-                costPrice,
-                sellingPrice,
-                minStockLevel,
-                maxStockLevel,
-                reorderPoint,
-                weight,
-                dimensions,
-                isActive,
-                isSerialized,
-                hasBatches,
-                createdAt,
-                updatedAt,
-                createdById,
-            } = request.body;
-
-            const product = await Product.create({
-                data: {
-                    id,
-                    sku,
-                    barcode,
-                    name,
-                    description,
-                    categoryId,
-                    unitOfMeasure,
-                    costPrice,
-                    sellingPrice,
-                    minStockLevel,
-                    maxStockLevel,
-                    reorderPoint,
-                    weight,
-                    dimensions,
-                    isActive,
-                    isSerialized,
-                    hasBatches,
-                    createdAt,
-                    updatedAt,
-                    createdById,
-                },
-            });
+            const product = await ProductService.create(request.body);
             reply.code(201).send(product);
         } catch (error) {
             reply.code(500).send({ error: "Failed to create product" });
@@ -97,16 +20,13 @@ export class ProductController {
     }
 
     static async getProductById(
-        request: FastifyRequest<{ Params: { id: number } }>,
+        request: FastifyRequest<{ Params: { id: string } }>,
         reply: FastifyReply
     ) {
-        const { id } = request.params;
         try {
-            const product = await Product.findUnique({
-                where: {
-                    id,
-                },
-            });
+            const id = parseInt(request.params.id, 10);
+            const product = await ProductService.findById(id);
+
             if (!product) {
                 return reply
                     .code(404)
@@ -114,7 +34,9 @@ export class ProductController {
             }
             reply.send(product);
         } catch (error) {
-            reply.code(500).send({ error: `Failed to fetch product - #${id}` });
+            reply.code(500).send({
+                error: `Failed to fetch product - #${request.params.id}`,
+            });
         }
     }
 
@@ -124,7 +46,8 @@ export class ProductController {
     ) {
         try {
             const { sku } = request.params;
-            const product = await Product.findUnique({ where: { sku } });
+            const product = await ProductService.findBySku(sku);
+
             if (!product) {
                 return reply.code(404).send({ error: "Product not found" });
             }
@@ -140,13 +63,14 @@ export class ProductController {
     ) {
         try {
             const { barcode } = request.params;
-            const product = await Product.findMany({ where: { barcode } });
-            if (!product) {
-                return reply.code(404).send({ error: "Product not found" });
+            const products = await ProductService.findByBarcode(barcode);
+
+            if (!products || products.length === 0) {
+                return reply.code(404).send({ error: "Products not found" });
             }
-            reply.send(product);
+            reply.send(products);
         } catch (error) {
-            reply.code(500).send({ error: "Failed to fetch product" });
+            reply.code(500).send({ error: "Failed to fetch products" });
         }
     }
 
@@ -155,15 +79,7 @@ export class ProductController {
         reply: FastifyReply
     ) {
         try {
-            const { id, name, description, createdAt, updatedAt } =
-                request.body;
-            const category = await Category.create({
-                data: {
-                    id,
-                    name,
-                    description,
-                },
-            });
+            const category = await ProductService.createCategory(request.body);
             reply.code(201).send(category);
         } catch (error) {
             reply.code(500).send({ error: "Failed to create category" });
@@ -171,12 +87,13 @@ export class ProductController {
     }
 
     static async getCategoryById(
-        request: FastifyRequest<{ Params: { id: number } }>,
+        request: FastifyRequest<{ Params: { id: string } }>,
         reply: FastifyReply
     ) {
-        const { id } = request.params;
         try {
-            const category = await Category.findUnique({ where: { id } });
+            const id = parseInt(request.params.id, 10);
+            const category = await ProductService.findCategoryById(id);
+
             if (!category) {
                 return reply
                     .code(404)
@@ -184,9 +101,9 @@ export class ProductController {
             }
             reply.send(category);
         } catch (error) {
-            reply
-                .code(500)
-                .send({ error: `Failed to fetch category - #${id}` });
+            reply.code(500).send({
+                error: `Failed to fetch category - #${request.params.id}`,
+            });
         }
     }
 
@@ -194,9 +111,10 @@ export class ProductController {
         request: FastifyRequest<{ Params: { name: string } }>,
         reply: FastifyReply
     ) {
-        const { name } = request.params;
         try {
-            const category = await Category.findFirst({ where: { name } });
+            const { name } = request.params;
+            const category = await ProductService.findCategoryByName(name);
+
             if (!category) {
                 return reply
                     .code(404)

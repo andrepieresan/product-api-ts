@@ -4,10 +4,10 @@ import { InventaryController } from "../inventary/inventary.controller";
 import { LocationController } from "../location/location.controller";
 
 export async function productRoutes(f: FastifyInstance) {
-    f.post("/product", ProductController.store);
-    f.get("/product/:id", ProductController.getProductById);
-    f.get("/product/sku/:sku", ProductController.getProductBySku);
-    f.get("/product/barcode/:barcode", ProductController.getProductsByBarcode);
+    f.post("/", ProductController.store);
+    f.get("/:id", ProductController.getProductById);
+    f.get("/sku/:sku", ProductController.getProductBySku);
+    f.get("/barcode/:barcode", ProductController.getProductsByBarcode);
     // f.put("/product/delete", deleteById);
 
     f.post("/category", ProductController.storeCategory);
